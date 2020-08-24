@@ -1,3 +1,4 @@
+//“my program works for greedy and DP solution only.”
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -67,7 +68,7 @@ void QuickSort(Item* items, int left, int right){
 }
 
 int maxLeaf(Tree* tree, int N, int LEN){
-    // tree->leafArr에서 가장 큰 값의 바운드를 가진 노드의 인덱스를 리턴하는 함수.
+	// return index of node whose bound is highest in the leafArr
     float max = 0;
     int max_idx = 0;
     for(int i=0;i<LEN;i++){
@@ -82,18 +83,13 @@ int maxLeaf(Tree* tree, int N, int LEN){
 }
 
 float Getbound(Item* items, int benefit,int available, int N, int item_idx){
-    // 이 상황에서 앞으로 나올 수 있는 최고의 경우
-    float bound = benefit; //지금까지의 benefit
-    // printf("\n지금까지 benefit %d\n",benefit);
-    // printf("item %d번부터 더할거임\n",item_idx);
+    float bound = benefit;
     for(int i=item_idx;i<N;i++){
         if(items[i].weight > available) {
-            // ("item %d는 일부만 더함\n",i);
             bound += items[i].BenefitPerWeight * available;
             break;
         }
         else{
-            // printf("item %d는 whole로 더함\n",i);
             bound += items[i].benefit;
             available -= items[i].weight;
             if(available == 0) break;
@@ -104,18 +100,10 @@ float Getbound(Item* items, int benefit,int available, int N, int item_idx){
 
 int MakeLeftNode(Tree* tree, Item* items, int idx, int item_idx, int N, int W){
     int parentIDX = idx/2;
-    // printf("node %d : ",idx);
-    
     int benefit = tree->treeArr[parentIDX].benefit + items[item_idx].benefit; //benefit
-    // printf("benefit %d ",benefit);
-    
     int weight = tree->treeArr[parentIDX].weight + items[item_idx].weight; //weight
     if(weight > W) return 0;
-    // printf("weight %d ",weight);
-    
     float bound = Getbound(items, benefit, W-weight, N, item_idx+1); //bound
-    // printf("bound %f\n",bound);
-    // printf("max_benefit %d\n",max_benefit);
 
     if(benefit > max_benefit) max_benefit = benefit; //update max_benefit
     tree->treeArr[idx].benefit = benefit;
@@ -125,18 +113,12 @@ int MakeLeftNode(Tree* tree, Item* items, int idx, int item_idx, int N, int W){
 }
 
 int MakeRightNode(Tree* tree, Item* items, int idx, int item_idx, int N, int W){
-    // printf("node %d : ",idx);
+
     int parentIDX = (idx-1)/2;
     int benefit = tree->treeArr[parentIDX].benefit;
     if(benefit > max_benefit) max_benefit = benefit;
-    // printf("benefit %d ",benefit);
-
     int weight = tree->treeArr[parentIDX].weight;
-    // printf("weight %d ",weight);
-
     float bound = Getbound(items, benefit, W-weight, N, item_idx+1);
-    // printf("bound %f\n",bound);
-    // printf("max_benefit %d\n",max_benefit);
 
     tree->treeArr[idx].benefit = benefit;
     tree->treeArr[idx].weight = weight;
@@ -144,63 +126,73 @@ int MakeRightNode(Tree* tree, Item* items, int idx, int item_idx, int N, int W){
     return 1;
 }
 
-void BranchAndBound(Tree* tree, Item* items, int N, int W){
-    for(int i=0;i<N;i++){
-        printf("item %d : ",i);
-        printf("benefit %d ",items[i].benefit);
-        printf("weight %d ",items[i].weight);
-        printf("BenefitPerWeight %f\n",items[i].BenefitPerWeight);
-    }
+void BranchAndBound(Item* items, int N, int W, FILE* fp){
+    printf("\n");
     int FLAG = 0;
+	float LEN = 2;
+	//declare and initialize tree
+    Tree tree;
+    tree.treeArr = (Element*)malloc(sizeof(Element)*2);
+    tree.leafArr = (int*)malloc(sizeof(int)*2);
     
     clock_t start, curr;
     start = clock();
     //first node
     int available=W;
     float bound = Getbound(items, 0, W, N, 0); //bound of first node
-    tree->treeArr[1].benefit = 0;
-    tree->treeArr[1].weight = 0;
-    tree->treeArr[1].bound = bound;
-    
-    printf("node 1 : benefit 0 weight 0 bound %f\n",bound);
-    tree->leafArr[1]=1;
+    tree.treeArr[1].benefit = 0;
+    tree.treeArr[1].weight = 0;
+    tree.treeArr[1].bound = bound;
+    tree.leafArr[1]=1;
     
     for(int item=0;item<N;item++){
-        int parent = maxLeaf(tree, N, pow(2,N));
+        int parent = maxLeaf(&tree, N, pow(2,N));
         curr = clock();
-        if(((double)(curr - start)/CLOCKS_PER_SEC) > 900 ){
+        if(((double)(curr - start)/CLOCKS_PER_SEC*1000) > 0.9 ){
             if(FLAG == 0){
                 printf("over 15mins\n");
                 FLAG = 1;
             }
         }
-        if((tree->treeArr[parent].bound > max_benefit) && (tree->treeArr[parent].weight <= W)){
+        if((tree.treeArr[parent].bound > max_benefit) && (tree.treeArr[parent].weight <= W)){
+            int LEN = pow(2,item+2);
+			Element* treeArrReturn = realloc(tree.treeArr ,sizeof(Element) * LEN);
+			if(treeArrReturn == NULL){
+				printf("Error with reallocation of treeArr\n");
+                return ;
+            }
+            tree.treeArr = treeArrReturn;
+			
+			int* leafArrReturn = realloc(tree.leafArr ,sizeof(int) * LEN);
+			if(leafArrReturn == NULL){
+				printf("Error with reallocation of leafArr\n");
+                return ;
+            }
+            tree.leafArr = leafArrReturn;
+
             int leftChild = parent*2;
             int rightChild = parent*2+1;
 
-            // printf("parent : %d\n",parent);
-            int left = MakeLeftNode(tree, items, leftChild, item, N, W); //include this item
-            int right = MakeRightNode(tree, items, rightChild, item, N, W); //not include this item
+            int left = MakeLeftNode(&tree, items, leftChild, item, N, W); //include this item
+            int right = MakeRightNode(&tree, items, rightChild, item, N, W); //not include this item
 
-            tree->leafArr[parent] = 0;
-            if(left == 1) tree->leafArr[leftChild] = 1;
-            if(right == 1) tree->leafArr[rightChild] = 1;
+            tree.leafArr[parent] = 0;
+            if(left == 1) tree.leafArr[leftChild] = 1;
+            if(right == 1) tree.leafArr[rightChild] = 1;
         }
     }
+    free(tree.treeArr);
+    free(tree.leafArr);
     curr = clock();
-    printf("duration : %f\n",(float)(curr - start)/CLOCKS_PER_SEC);
+	float duration = (float)(curr - start)/CLOCKS_PER_SEC/1000;
+    printf("duration : %f\n",duration);
     printf("best benefit : %d\n",max_benefit);
+	fprintf(fp,"%f/%d\n",duration, max_benefit);
 }
 
-void Greedy(Item* items, int N, int W){
+void Greedy(Item* items, int N, int W, FILE* fp){
     // sorting items by benefit/weight
     QuickSort(items, 0, N-1);
-    // for(int i=0;i<N;i++){
-    //     printf("item %d : ",i);
-    //     printf("benefit %d ",items[i].benefit);
-    //     printf("weight %d ",items[i].weight);
-    //     printf("BenefitPerWeight %f\n",items[i].BenefitPerWeight);
-    // }
 
     int FLAG = 0;
     clock_t start, curr;
@@ -214,7 +206,7 @@ void Greedy(Item* items, int N, int W){
     // else, take it as whole
     for(int i=0 ; i<N ; i++){
         curr = clock();
-        if(((double)(curr - start)/CLOCKS_PER_SEC) > 900 ){
+        if(((double)(curr - start)/CLOCKS_PER_SEC*1000) > 0.9 ){
             if(FLAG == 0){
                 printf("over 15mins\n");
                 FLAG = 1;
@@ -231,11 +223,13 @@ void Greedy(Item* items, int N, int W){
         }
     }
     curr = clock();
-    printf("duration : %f\n",(float)(curr - start)/CLOCKS_PER_SEC);
+	float duration = (float)(curr - start)/CLOCKS_PER_SEC/1000;
+    printf("duration : %f\n",duration);
     printf("best benefit : %d\n", total_benefit);
+	fprintf(fp,"%f/%d\t",duration,total_benefit);
 }
 
-void DynamicProgramming(Item* items,int N, int W){
+void DynamicProgramming(Item* items,int N, int W,FILE * fp){
     int FLAG = 0;
     int** B;
     B=(int**)malloc(sizeof(int*)*(N+1));
@@ -254,7 +248,7 @@ void DynamicProgramming(Item* items,int N, int W){
     for (int i = 1; i <= N; i++){
         for (int w = 1; w <= W; w++){
             curr = clock();
-            if(((double)(curr - start)/CLOCKS_PER_SEC) > 900 ){
+            if(((double)(curr - start)/CLOCKS_PER_SEC*1000) > 0.9 ){
                 if(FLAG == 0){
                     printf("over 15mins\n");
                     FLAG = 1;
@@ -270,52 +264,46 @@ void DynamicProgramming(Item* items,int N, int W){
                 B[i][w] = B[i-1][w];        
             }
     }
-    // free(B)
     curr = clock();
-    printf("duration : %f\n",(float)(curr - start)/CLOCKS_PER_SEC);
+	float duration = (float)(curr - start)/CLOCKS_PER_SEC/1000;
+    printf("duration : %f\n",duration);
     printf("best benefit : %d\n", B[N][W]);
+	fprintf(fp,"%f/%d\t",duration, B[N][W]);
+	free(B);
 }
 
 
 int main(){
     int N;
+	int num[9]={10,100,500,1000,3000,5000,7000,9000,10000};
+	FILE * fp = fopen("output.txt","w");
     srand(time(NULL));
-    printf("Enter the number of items : ");
-    scanf("%d",&N);
+    // printf("Enter the number of items : ");
+    // scanf("%d",&N);
+	fprintf(fp,"item#\tGreedy\tDP\tB&B\n");
+	for(int n=0;n<9;n++){
+		N=num[n];
+		fprintf(fp,"%d\t",N);
+		int W = N * 40;
+		Item item[N];
+		Item sorted_item[N];
+		for(int i=0;i<N;i++){
+			sorted_item[i].benefit = item[i].benefit  = rand() % 300 + 1;
+			sorted_item[i].weight =item[i].weight = rand() % 100 + 1;
+			sorted_item[i].BenefitPerWeight = item[i].BenefitPerWeight = ((float)item[i].benefit / item[i].weight);
+		}
 
-    int W = N * 40;
-    //;
-    int benefit[5]={286, 2, 89, 28, 101};
-    int weight[5]={45,29,53,22,4};
-    Item item[N];
-    Item sorted_item[N];
-    for(int i=0;i<N;i++){
-        sorted_item[i].benefit = item[i].benefit  = rand() % 300 + 1;
-        sorted_item[i].weight =item[i].weight = rand() % 100 + 1;
-        sorted_item[i].BenefitPerWeight = item[i].BenefitPerWeight = ((float)item[i].benefit / item[i].weight);
-    }
+		printf("1. Greedy\n");
+		Greedy(&sorted_item[0],N,W,fp);
 
-    //declare and initialize tree
-    int LEN = pow(2,N);
-    Tree tree;
-    tree.treeArr = (Element*)malloc(sizeof(Element)*LEN);
-    tree.leafArr = (int*)malloc(sizeof(int)*LEN);
+		printf("\n2. Dynamic Programming\n");
+		DynamicProgramming(&item[0],N,W,fp);
 
-    for(int i=0;i<LEN;i++){
-        tree.treeArr[i].benefit = 0;
-        tree.treeArr[i].weight = 0;
-        tree.treeArr[i].bound = 0;
-    }
-    for(int i=0;i<LEN;i++) tree.leafArr[i] = 0;
-
-    printf("1. Greedy\n");
-    Greedy(&sorted_item[0],N,W);
-
-    printf("\n2. Dynamic Programming\n");
-    DynamicProgramming(&item[0],N,W);
-
-    // printf("\n3. Branch and bound\n");
-    // BranchAndBound(&tree,&sorted_item[0],N,W);
+		printf("\n3. Branch and bound");
+		BranchAndBound(&sorted_item[0],N,W,fp);
+        printf("\n");
+	}
+    fclose(fp);
 
     return 0;
 }
